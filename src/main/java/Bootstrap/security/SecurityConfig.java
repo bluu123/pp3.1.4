@@ -1,61 +1,58 @@
 package Bootstrap.security;
 
+import Bootstrap.service.UserServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
-@Configuration
+
 @EnableWebSecurity
 public class SecurityConfig extends WebSecurityConfigurerAdapter {
-    private final UserDetailsService userDetailsService;
+
+    private final UserDetailsServiceImpl userDetailsServiceImpl;
     private final LoginSuccessHandler loginSuccessHandler;
 
-    @Autowired
-    public SecurityConfig(UserDetailsService userDetailsService, LoginSuccessHandler loginSuccessHandler) {
-        this.userDetailsService = userDetailsService;
+    public SecurityConfig(@Qualifier("userDetailsServiceImpl")UserDetailsServiceImpl userDetailsServiceImpl,
+                          LoginSuccessHandler loginSuccessHandler) {
+        this.userDetailsServiceImpl = userDetailsServiceImpl;
         this.loginSuccessHandler = loginSuccessHandler;
     }
 
-    @Override
     @Autowired
-    public void configure(AuthenticationManagerBuilder auth) throws Exception {
-        auth.userDetailsService(userDetailsService).passwordEncoder(passwordEncoder());
+    protected void configureGlobalSecurity(AuthenticationManagerBuilder auth) throws Exception {
+        auth.userDetailsService(userDetailsServiceImpl).passwordEncoder(passwordEncoder());
     }
 
     @Override
     protected void configure(HttpSecurity http) throws Exception {
         http.formLogin()
-                .loginPage("/login")
                 .successHandler(loginSuccessHandler)
                 .loginProcessingUrl("/login")
-                .usernameParameter("j_login")
-                .passwordParameter("j_password")
+                .usernameParameter("username")
+                .passwordParameter("password")
                 .permitAll();
-
-        http.logout()
-                .permitAll()
-                .logoutRequestMatcher(new AntPathRequestMatcher("/logout"))
-                .logoutSuccessUrl("/login?logout")
-                .and().csrf().disable();
-
         http
                 .authorizeRequests()
                 .antMatchers("/login").anonymous()
-                .antMatchers("/admin/**").access("hasAnyAuthority('ADMIN')")
-                .antMatchers("/user/**").access("hasAnyAuthority('ADMIN', 'USER')")
-                .anyRequest().authenticated();
+                .antMatchers("/").access("hasAnyRole('ROLE_USER','ROLE_ADMIN')").anyRequest().authenticated();
+        http.logout()
+                .permitAll()
+                .logoutRequestMatcher(new AntPathRequestMatcher("/logout"))
+                .logoutSuccessUrl("/login")
+                .and().csrf().disable();
     }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+        return new BCryptPasswordEncoder(12);
     }
+
+
 }
